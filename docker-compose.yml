@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: docker/host.Dockerfile
     ports:
-      - "8088:8088"
+      - "${HOST_PORT:-8088}:8088"
     environment:
       # Default points at the runner's standard static IP below. Override to
       # target a runner anywhere else (another host, a bare-metal box, a
@@ -16,6 +16,8 @@ services:
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET}
     volumes:
       - host_data:/app/data
+      - ${KB_PATH:-./kb}:/app/kb   # real folder for the knowledge base
+      - ./.env:/app/.env           # lets the Settings page edit .env
     networks:
       alh:
     depends_on:

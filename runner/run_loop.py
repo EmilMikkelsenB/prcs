@@ -5,6 +5,7 @@ producer (ideas-like) may read/write files but not commit/push/open a PR;
 consumer (implement-like) may do all of that except force-push or merge.
 """
 import hashlib
+import json
 import re
 import subprocess
 import time
@@ -50,7 +51,7 @@ def run(loop_config, workspace_dir, github_token, upstream_output=None, timeout_
     tools = TOOLS[role]
     prompt = _build_prompt(loop_config, upstream_output)
     model = loop_config.get("model", "claude-sonnet-5-5")
-    cmd = ["claude", "-p", prompt, "--model", model,
+    cmd = ["claude", "-p", prompt, "--model", model, "--output-format", "json",
            "--allowedTools", tools["allowed"], "--disallowedTools", tools["disallowed"]]
     env = {"GIT_TERMINAL_PROMPT": "0", "GITHUB_TOKEN": github_token, "PATH": "/usr/local/bin:/usr/bin:/bin"}
 
@@ -78,6 +79,18 @@ def run(loop_config, workspace_dir, github_token, upstream_output=None, timeout_
                 break
     rc, log = (proc.returncode if proc.returncode is not None else -1), "".join(out)
     secs = time.time() - start
+    stats = None
+    try:  # --output-format json: one object with the answer text plus cost/token usage
+        j = json.loads(log.strip())
+        u = j.get("usage") or {}
+        stats = {"cost_usd": j.get("total_cost_usd") or 0, "turns": j.get("num_turns") or 0,
+                 "input_tokens": u.get("input_tokens", 0), "output_tokens": u.get("output_tokens", 0),
+                 "cache_read_tokens": u.get("cache_read_input_tokens", 0),
+                 "cache_write_tokens": u.get("cache_creation_input_tokens", 0),
+                 "api_ms": j.get("duration_api_ms"), "session_id": j.get("session_id")}
+        log = j.get("result") or log
+    except (ValueError, AttributeError):
+        pass  # timed out / killed / old CLI: keep the raw log, no stats
 
     limit_hit = bool(LIMIT_RE.search(log))
     pr_match = PR_URL_RE.search(log)
@@ -94,5 +107,5 @@ def run(loop_config, workspace_dir, github_token, upstream_output=None, timeout_
     return {
         "status": "limit_hit" if limit_hit else ("done" if rc == 0 else "failed"),
         "rc": rc, "secs": round(secs, 1), "log_tail": log[-4000:],
-        "output": output, "output_id": output_id,
+        "output": output, "output_id": output_id, "stats": stats,
     }

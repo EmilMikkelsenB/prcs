@@ -36,3 +36,7 @@ def get_run(run_id):
 
 def stop_run(run_id):
     return _request("POST", f"/runs/{run_id}/stop")
+
+
+def list_runs():
+    return _request("GET", "/runs")

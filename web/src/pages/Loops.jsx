@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { api, useFetch, del } from "../api.js";
-import { Card, Button, Chip, Empty, Field, useToast } from "../ui.jsx";
+import { Card, Button, Chip, Empty, Field, Table, useToast } from "../ui.jsx";
 
 function LoopForm({ onSaved, tuningKeys, existing }) {
   const toast = useToast();
   const [form, setForm] = useState(existing || { name: "", role: "producer", target_repo: "", focus: { text: "" }, tuning: {} });
   const [busy, setBusy] = useState(false);
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const [repos, setRepos] = useState(null);
+  useEffect(() => { api("/github/repos").then(setRepos).catch(() => {}); }, []); // falls back to text input if not connected
+  const set =(k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -31,7 +33,15 @@ function LoopForm({ onSaved, tuningKeys, existing }) {
         </select>
       </Field>
       <Field label="Target repo (owner/repo)">
-        <input value={form.target_repo} onChange={(e) => set("target_repo", e.target.value)} placeholder="acme/widgets" required />
+        {repos ? (
+          <select value={form.target_repo} onChange={(e) => set("target_repo", e.target.value)} required>
+            <option value="" disabled>Select a repo…</option>
+            {form.target_repo && !repos.some((r) => r.full_name === form.target_repo) && <option>{form.target_repo}</option>}
+            {repos.map((r) => <option key={r.full_name} value={r.full_name}>{r.full_name}{r.private ? " (private)" : ""}</option>)}
+          </select>
+        ) : (
+          <input value={form.target_repo} onChange={(e) => set("target_repo", e.target.value)} placeholder="owner/repo (connect GitHub for a list)" required />
+        )}
       </Field>
       <Field label="Focus / prompt">
         <textarea value={form.focus?.text || ""} onChange={(e) => set("focus", { text: e.target.value })} rows={4} required />
@@ -68,28 +78,28 @@ export default function Loops() {
   };
 
   return (
-    <Card title="Loops" aside={<Button kind="primary" onClick={() => { setDraft(null); setCreating((c) => !c); }}>{creating ? "Cancel" : "New loop"}</Button>}>
+    <Card title="Loops" aside={<Button kind={creating ? "secondary" : "primary"} icon={creating ? "x" : "plus"} onClick={() => { setDraft(null); setCreating((c) => !c); }}>{creating ? "Cancel" : "New loop"}</Button>}>
       {!creating && templates && templates.length > 0 && (
-        <div className="row tight">
+        <div className="row tight" style={{ marginBottom: 14 }}>
+          <span className="muted small">Start from a template:</span>
           {templates.map((t) => <Button key={t.id} onClick={() => useTemplate(t)}>{t.name}</Button>)}
         </div>
       )}
       {creating && <LoopForm key={draft ? draft.focus.text : "blank"} existing={draft} tuningKeys={tuningKeys} onSaved={() => { setCreating(false); setDraft(null); reload(); }} />}
-      {!loops ? <Empty>Loading…</Empty> : loops.length === 0 ? <Empty>No loops yet.</Empty> : (
-        <ul className="list">{loops.map((l) => (
-          <li key={l.id} className="item">
-            <div className="item-top">
-              <b>{l.name}</b>
-              <Chip tone={l.role === "consumer" ? "info" : "ok"}>{l.role}</Chip>
-            </div>
-            <div className="muted small">{l.target_repo}</div>
-            <div className="row tight">
-              <Button onClick={() => setEditing(editing === l.id ? null : l.id)}>{editing === l.id ? "Close" : "Edit"}</Button>
-              <Button kind="danger" onClick={() => remove(l.id)}>Delete</Button>
-            </div>
-            {editing === l.id && <LoopForm existing={l} tuningKeys={tuningKeys} onSaved={() => { setEditing(null); reload(); }} />}
-          </li>
-        ))}</ul>
+      {!loops ? <Empty>Loading…</Empty> : (
+        <Table rowKey={(l) => l.id} rows={loops} empty="No loops yet. Create one or start from a template."
+          cols={[
+            { key: "name", label: "Name", render: (l) => <>
+                <strong>{l.name}</strong>
+                {editing === l.id && <div className="inline-form"><LoopForm existing={l} tuningKeys={tuningKeys} onSaved={() => { setEditing(null); reload(); }} /></div>}
+              </> },
+            { key: "role", label: "Role", w: 120, render: (l) => <Chip tone={l.role === "consumer" ? "info" : "ok"}>{l.role}</Chip> },
+            { key: "target_repo", label: "Repository", w: 260 },
+            { key: "a", label: "", w: 90, render: (l) => <div className="actions">
+                <Button kind="ghost" icon={editing === l.id ? "x" : "edit"} aria-label="Edit" onClick={() => setEditing(editing === l.id ? null : l.id)} />
+                <Button kind="ghost danger" icon="trash" aria-label="Delete" onClick={() => remove(l.id)} />
+              </div> },
+          ]} />
       )}
     </Card>
   );

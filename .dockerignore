@@ -1,0 +1,9 @@
+.git
+.env
+kb
+data
+**/node_modules
+**/__pycache__
+web/dist
+tests
+*.md

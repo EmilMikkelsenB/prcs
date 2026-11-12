@@ -4,13 +4,13 @@ import threading
 import time
 import traceback
 
+import config
 import flowpaths
 import github_oauth
+import kb
 import loops
 import runner_client
-
-TICK_SECONDS = 10
-
+import usage
 
 def tick():
     for fp in flowpaths.list_flowpaths():
@@ -30,6 +30,11 @@ def tick():
                     link_state["last_run_at"] = time.time()
                     link_state["current_run_id"] = None
                     changed = True
+                    try:
+                        kb.save_run(loops.get(link["loop_id"]), run_id, status)
+                        usage.record(loops.get(link["loop_id"]), run_id, status)
+                    except Exception:
+                        traceback.print_exc()  # KB is best-effort; never block the scheduler
 
             is_first = i == 0
             prev_state = state.get(str(i - 1), {}) if not is_first else {}
@@ -66,5 +71,5 @@ def start_background():
                 tick()
             except Exception:
                 traceback.print_exc()
-            time.sleep(TICK_SECONDS)
+            time.sleep(config.get("scheduler_tick", 10))
     threading.Thread(target=loop, daemon=True).start()

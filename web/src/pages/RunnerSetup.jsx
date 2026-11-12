@@ -20,7 +20,7 @@ export default function RunnerSetup({ suggested, onSaved }) {
   };
 
   return (
-    <div className="login-box card">
+    <div className="login-wrap"><div className="login-box panel"><div className="panel-b">
       <h3>Where is the runner?</h3>
       <p className="muted small">
         One-time setup: tell the host where the runner (the container/host
@@ -33,9 +33,9 @@ export default function RunnerSetup({ suggested, onSaved }) {
           <input value={url} onChange={(e) => setUrl(e.target.value)} autoFocus
                  placeholder="http://172.28.0.10:8089" />
         </div>
-        {err && <p className="chip bad">{err}</p>}
+        {err && <p className="err">{err}</p>}
         <button className="btn primary" disabled={busy} type="submit">{busy ? "…" : "Save"}</button>
       </form>
-    </div>
+    </div></div></div>
   );
 }

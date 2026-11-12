@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { api, useFetch, del } from "../api.js";
-import { Card, Button, Empty, Field, useToast } from "../ui.jsx";
+import { Card, Button, Empty, Field, Icon, Table, useToast } from "../ui.jsx";
 
 function LinkRow({ link, loops, onChange, onRemove }) {
   return (
@@ -13,7 +13,7 @@ function LinkRow({ link, loops, onChange, onRemove }) {
         <option value="once">once — run once, hand off</option>
         <option value="continuous">continuous — keep its own schedule</option>
       </select>
-      <Button kind="danger" type="button" onClick={onRemove}>Remove</Button>
+      <Button kind="ghost danger" icon="x" type="button" aria-label="Remove link" onClick={onRemove} />
     </div>
   );
 }
@@ -49,7 +49,7 @@ function FlowpathForm({ loops, onSaved }) {
                  onRemove={() => setLinks((ls) => ls.filter((_, j) => j !== i))} />
       ))}
       <div className="row">
-        <Button type="button" onClick={() => setLinks((ls) => [...ls, { loop_id: "", trigger_mode: "once" }])}>Add link</Button>
+        <Button type="button" icon="plus" onClick={() => setLinks((ls) => [...ls, { loop_id: "", trigger_mode: "once" }])}>Add link</Button>
         <Button kind="primary" busy={busy} type="submit">Create flowpath</Button>
       </div>
     </form>
@@ -67,22 +67,27 @@ export default function Flowpaths() {
   };
 
   if (!loops) return <Empty>Loading…</Empty>;
+  const name = (id) => loops.find((x) => x.id === id)?.name || id;
   return (
-    <Card title="Flowpaths">
-      {loops.length === 0 ? <Empty>Create at least one loop first.</Empty> : <FlowpathForm loops={loops} onSaved={reload} />}
-      {flowpaths && flowpaths.length > 0 && (
-        <ul className="list">{flowpaths.map((fp) => (
-          <li key={fp.id} className="item">
-            <div className="item-top"><b>{fp.name}</b><Button kind="danger" onClick={() => remove(fp.id)}>Delete</Button></div>
-            <div className="muted small">
-              {fp.links.map((l, i) => {
-                const loop = loops.find((x) => x.id === l.loop_id);
-                return <span key={i}>{i > 0 && " → "}{loop?.name || l.loop_id} ({l.trigger_mode})</span>;
-              })}
-            </div>
-          </li>
-        ))}</ul>
-      )}
-    </Card>
+    <>
+      <Card title="Flowpaths">
+        {!flowpaths ? <Empty>Loading…</Empty> : (
+          <Table rowKey={(fp) => fp.id} rows={flowpaths} empty="No flowpaths yet. Chain loops below."
+            cols={[
+              { key: "name", label: "Name", w: 220, render: (fp) => <strong>{fp.name}</strong> },
+              { key: "chain", label: "Chain", render: (fp) => <span className="row tight">
+                  {fp.links.map((l, i) => <React.Fragment key={i}>
+                    {i > 0 && <Icon name="arrow" size={14} />}
+                    <span>{name(l.loop_id)} <span className="muted small">({l.trigger_mode})</span></span>
+                  </React.Fragment>)}
+                </span> },
+              { key: "a", label: "", w: 60, render: (fp) => <div className="actions"><Button kind="ghost danger" icon="trash" aria-label="Delete" onClick={() => remove(fp.id)} /></div> },
+            ]} />
+        )}
+      </Card>
+      <Card title="New flowpath">
+        {loops.length === 0 ? <Empty>Create at least one loop first.</Empty> : <FlowpathForm loops={loops} onSaved={reload} />}
+      </Card>
+    </>
   );
 }

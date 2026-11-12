@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, useFetch } from "../api.js";
-import { Card, Chip, Empty, useToast } from "../ui.jsx";
+import { Card, Chip, Empty, Icon, Table, useToast } from "../ui.jsx";
 
 export default function ConnectGitHub() {
   const [status] = useFetch("/github/status", 30000);
@@ -17,16 +17,14 @@ export default function ConnectGitHub() {
       {!status.connected ? (
         <>
           <p className="muted small">Connect a GitHub account to pick target repos and let loops push and open PRs.</p>
-          <a className="btn primary" href="/auth/github/start">Connect GitHub</a>
+          <a className="btn primary" href="/auth/github/start"><Icon name="github" />Connect GitHub</a>
         </>
       ) : (
         <>
           <p className="muted small">{repos ? `${repos.length} repos available as loop targets.` : "Loading repos…"}</p>
-          {repos && (
-            <ul className="list">{repos.map((r) => (
-              <li key={r.full_name} className="item"><b>{r.full_name}</b> {r.private && <Chip>private</Chip>}</li>
-            ))}</ul>
-          )}
+          {repos && <Table rowKey={(r) => r.full_name} rows={repos} empty="No repositories."
+            cols={[{ key: "full_name", label: "Repository" },
+                   { key: "private", label: "Visibility", w: 120, render: (r) => r.private ? <span className="chip"><Icon name="lock" size={12} />private</span> : <span className="muted">public</span> }]} />}
         </>
       )}
     </Card>

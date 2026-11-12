@@ -6,6 +6,7 @@ COPY web/ ./
 RUN npm run build
 
 FROM python:3.12-slim
+RUN pip install --no-cache-dir watchfiles
 WORKDIR /app
 COPY host/ /app/host/
 COPY --from=web /web/dist /app/web/dist

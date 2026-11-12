@@ -1,0 +1,22 @@
+# Auto-loaded by `docker compose up --build` => dev mode: edit files, see changes.
+# For a production-style run: docker compose -f docker-compose.yml up --build -d
+services:
+  host:
+    environment: {WATCHFILES_FORCE_POLLING: "true"}  # inotify doesn't cross Windows bind mounts
+    volumes: ["./host:/app/host"]
+    command: watchfiles "python3 -I host/app.py" host
+  runner:
+    environment: {WATCHFILES_FORCE_POLLING: "true"}
+    volumes: ["./runner:/app/runner"]
+    command: watchfiles "python3 -I runner/runner_app.py" runner
+  web:  # Vite HMR — open http://localhost:5173
+    image: node:20-slim
+    working_dir: /web
+    command: sh -c "npm install && npm run dev"
+    environment: {API_TARGET: "http://host:8088"}
+    ports: ["5173:5173"]
+    volumes: ["./web:/web", "web_node_modules:/web/node_modules"]
+    networks: [alh]
+    depends_on: [host]
+volumes:
+  web_node_modules:

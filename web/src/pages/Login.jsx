@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Icon } from "../ui.jsx";
 
 export default function Login({ onLoggedIn }) {
   const [username, setUsername] = useState("");
@@ -25,20 +26,24 @@ export default function Login({ onLoggedIn }) {
   };
 
   return (
-    <div className="login-box card">
-      <h3>Sign in</h3>
-      <form onSubmit={submit}>
-        <div className="field">
-          <label>Username</label>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+    <div className="login-wrap">
+      <div className="login-box panel">
+        <div className="panel-b">
+          <div className="brand"><span className="mark"><Icon name="loops" size={14} /></span>Agent Loop Dash</div>
+          <form onSubmit={submit}>
+            <div className="field">
+              <label>Username</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" />
+            </div>
+            <div className="field">
+              <label>Password</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            </div>
+            {err && <p className="err">{err}</p>}
+            <button className="btn primary" disabled={busy} type="submit">{busy ? "…" : "Sign in"}</button>
+          </form>
         </div>
-        <div className="field">
-          <label>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
-        {err && <p className="chip bad">{err}</p>}
-        <button className="btn primary" disabled={busy} type="submit">{busy ? "…" : "Sign in"}</button>
-      </form>
+      </div>
     </div>
   );
 }

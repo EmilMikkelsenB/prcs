@@ -25,6 +25,16 @@ def _save(cfg):
         json.dump(cfg, f)
 
 
+def get(key, default=None):
+    return _load().get(key, default)
+
+
+def set_many(values):
+    cfg = _load()
+    cfg.update(values)
+    _save(cfg)
+
+
 def get_runner_url():
     return _load().get("runner_url") or DEFAULT_RUNNER_URL
 

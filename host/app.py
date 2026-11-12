@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from http.cookies import SimpleCookie
@@ -13,13 +14,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import settings  # noqa: E402
+settings.load_env_into_os()  # before modules that read env at import
 import auth  # noqa: E402
 import config  # noqa: E402
 import flowpaths  # noqa: E402
 import github_oauth  # noqa: E402
+import kb  # noqa: E402
 import loops  # noqa: E402
 import runner_client  # noqa: E402
 import scheduler  # noqa: E402
+import usage  # noqa: E402
 
 BIND = os.environ.get("HOST_BIND", "0.0.0.0")
 PORT = int(os.environ.get("HOST_PORT", "8088"))
@@ -87,6 +92,18 @@ class H(BaseHTTPRequestHandler):
                 return self._json({"connected": github_oauth.connected()})
             if p == "/api/github/repos":
                 return self._json(github_oauth.list_repos(github_oauth.load_token()))
+            if p == "/api/settings":
+                return self._json(settings.get_all())
+            if p == "/api/kb":
+                return self._json(kb.search((q.get("q") or [""])[0]))
+            if p == "/api/kb/status":
+                return self._json(kb.status())
+            if p == "/api/kb/file":
+                return self._json(kb.read_file((q.get("path") or [""])[0]))
+            if p == "/api/usage":
+                return self._json(usage.summary())
+            if p == "/api/runs":
+                return self._json(runner_client.list_runs())
             m = re.match(r"^/api/runs/([\w]+)$", p)
             if m:
                 return self._json(runner_client.get_run(m.group(1)))
@@ -94,6 +111,8 @@ class H(BaseHTTPRequestHandler):
                 return self._github_start()
             if p == "/auth/github/callback":
                 return self._github_callback(q)
+        except ValueError as e:
+            return self._json({"error": str(e)}, 400)
         except Exception as e:
             return self._json({"error": str(e)}, 500)
         self._static(p)
@@ -146,6 +165,17 @@ class H(BaseHTTPRequestHandler):
                 return
             if p == "/api/config":
                 return self._json({"runner_url": config.set_runner_url(body.get("runner_url"))})
+            if p == "/api/settings":
+                return self._json(settings.save(body))
+            if p == "/api/restart":
+                self._json({"ok": True})
+                # re-exec in place: new process re-reads .env; works under watchfiles too
+                threading.Timer(0.5, lambda: os.execv(sys.executable, [sys.executable] + sys.argv)).start()
+                return
+            if p == "/api/kb/sync":
+                return self._json(kb.sync_repos())
+            if p == "/api/kb/file":
+                return self._json(kb.write_note(body.get("path", ""), body.get("content", "")))
             if p == "/api/loops":
                 return self._json(loops.create(body))
             m = re.match(r"^/api/loops/(\w+)$", p)
@@ -169,6 +199,12 @@ class H(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         if not self._auth(p):
             return
+        if p == "/api/kb/file":
+            try:
+                kb.delete_note((parse_qs(urlparse(self.path).query).get("path") or [""])[0])
+                return self._json({"ok": True})
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
         m = re.match(r"^/api/loops/(\w+)$", p)
         if m:
             return self._json({"ok": loops.delete(m.group(1))})
@@ -228,4 +264,5 @@ class H(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     auth.bootstrap()
     scheduler.start_background()
+    kb.start_background()
     ThreadingHTTPServer((BIND, PORT), H).serve_forever()

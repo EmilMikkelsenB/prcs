@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG CLAUDE_CODE_VERSION=latest
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
+RUN pip install --no-cache-dir watchfiles
+
 WORKDIR /app
 COPY runner/ /app/runner/
 ENV RUNNER_BIND=0.0.0.0 RUNNER_PORT=8089

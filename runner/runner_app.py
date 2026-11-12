@@ -2,6 +2,7 @@
 Only reachable from the host over the private compose network."""
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -29,7 +30,19 @@ def _execute(run_id, loop_config, github_token, upstream_output):
         result = {"status": "failed", "rc": -1, "secs": 0, "log_tail": traceback.format_exc(),
                    "output": {}, "output_id": None}
     with _lock:
-        _runs[run_id].update(result)
+        _runs[run_id].update(result, finished_at=time.time())
+
+
+_ver = []
+
+
+def _claude_version():
+    if not _ver:  # cached: spawning node every health poll is wasteful
+        try:
+            _ver.append(subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=20).stdout.strip() or None)
+        except Exception:
+            _ver.append(None)
+    return _ver[0]
 
 
 class H(BaseHTTPRequestHandler):
@@ -47,7 +60,12 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._json({"ok": True, "service": "runner"})
+            return self._json({"ok": True, "service": "runner", "claude_version": _claude_version(),
+                               "logged_in": os.path.isfile(os.path.expanduser("~/.claude/.credentials.json"))})
+        if self.path == "/runs":
+            with _lock:  # list view omits log_tail; fetch /runs/<id> for it
+                rows = [{k: v for k, v in dict(r, id=i).items() if k not in ("cancel", "log_tail")} for i, r in _runs.items()]
+            return self._json(sorted(rows, key=lambda r: r["started_at"], reverse=True)[:50])
         if self.path.startswith("/runs/"):
             run_id = self.path.split("/")[2]
             with _lock:
@@ -64,7 +82,8 @@ class H(BaseHTTPRequestHandler):
             with _lock:
                 _runs[run_id] = {"status": "running", "rc": None, "secs": None,
                                   "log_tail": "", "output": {}, "output_id": None,
-                                  "started_at": time.time(), "cancel": threading.Event()}
+                                  "started_at": time.time(), "cancel": threading.Event(),
+                                  "loop": {k: body["loop_config"].get(k) for k in ("id", "name", "role", "target_repo")}}
             t = threading.Thread(target=_execute, args=(
                 run_id, body["loop_config"], body["github_token"], body.get("upstream_output")), daemon=True)
             t.start()
