@@ -1,4 +1,16 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
+DOMPurify.addHook("afterSanitizeAttributes", (n) => {
+  if (n.tagName === "A") { n.setAttribute("target", "_blank"); n.setAttribute("rel", "noreferrer noopener"); }
+});
+
+/** Renders markdown. Always sanitized: KB files can come from any synced repo. */
+export function Markdown({ text }) {
+  const html = useMemo(() => DOMPurify.sanitize(marked.parse(text || "", { gfm: true, breaks: false })), [text]);
+  return <div className="md" dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 const ToastCtx = createContext(() => {});
 export const useToast = () => useContext(ToastCtx);
@@ -22,6 +34,9 @@ export function ToastProvider({ children }) {
 
 // 16px stroke icons (lucide-style paths), inherit currentColor.
 const PATHS = {
+  sparkle: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
+  play: "M6 4l14 8-14 8z",
+  retry: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
   pulse: "M22 12h-4l-3 9L9 3l-3 9H2",
   loops: "M3 12a9 9 0 0 1 15.5-6.3L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.3L3 16M3 21v-5h5",
   flow: "M5 4h4v4H5zM15 16h4v4h-4zM9 6h4a2 2 0 0 1 2 2v8a2 2 0 0 0 2 2",

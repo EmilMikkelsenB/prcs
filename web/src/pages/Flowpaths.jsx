@@ -7,11 +7,11 @@ function LinkRow({ link, loops, onChange, onRemove }) {
     <div className="row">
       <select value={link.loop_id} onChange={(e) => onChange({ ...link, loop_id: e.target.value })}>
         <option value="">Pick a loop…</option>
-        {loops.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.role})</option>)}
+        {loops.map((l) => <option key={l.id} value={l.id}>{l.name} ({l.permissions})</option>)}
       </select>
       <select value={link.trigger_mode} onChange={(e) => onChange({ ...link, trigger_mode: e.target.value })}>
-        <option value="once">once — run once, hand off</option>
-        <option value="continuous">continuous — keep its own schedule</option>
+        <option value="once">once — runs once, then hands off</option>
+        <option value="continuous">continuous — repeats on its own schedule</option>
       </select>
       <Button kind="ghost danger" icon="x" type="button" aria-label="Remove link" onClick={onRemove} />
     </div>
@@ -43,6 +43,7 @@ function FlowpathForm({ loops, onSaved }) {
   return (
     <form onSubmit={submit}>
       <Field label="Name"><input value={name} onChange={(e) => setName(e.target.value)} required /></Field>
+      <p className="muted small">The first loop starts right away — within about 10 seconds of creating the flowpath. Later links start when the one before them produces new output.</p>
       {links.map((link, i) => (
         <LinkRow key={i} link={link} loops={loops}
                  onChange={(l) => setLinks((ls) => ls.map((x, j) => (j === i ? l : x)))}
@@ -66,6 +67,11 @@ export default function Flowpaths() {
     try { await del(`/flowpaths/${id}`); toast("Deleted"); reload(); } catch (e) { toast(e.message, "bad"); }
   };
 
+  const rerun = async (fp) => {
+    if (!confirm(`Run "${fp.name}" again from the first loop? Progress from the previous pass is forgotten.`)) return;
+    try { await api(`/flowpaths/${fp.id}/rerun`, {}); toast("Restarting — the first loop starts within about 10 seconds"); } catch (e) { toast(e.message, "bad"); }
+  };
+
   if (!loops) return <Empty>Loading…</Empty>;
   const name = (id) => loops.find((x) => x.id === id)?.name || id;
   return (
@@ -81,7 +87,7 @@ export default function Flowpaths() {
                     <span>{name(l.loop_id)} <span className="muted small">({l.trigger_mode})</span></span>
                   </React.Fragment>)}
                 </span> },
-              { key: "a", label: "", w: 60, render: (fp) => <div className="actions"><Button kind="ghost danger" icon="trash" aria-label="Delete" onClick={() => remove(fp.id)} /></div> },
+              { key: "a", label: "", w: 110, render: (fp) => <div className="actions"><Button kind="ghost" icon="retry" aria-label="Run again" title="Run again from the first loop" onClick={() => rerun(fp)} /><Button kind="ghost danger" icon="trash" aria-label="Delete" onClick={() => remove(fp.id)} /></div> },
             ]} />
         )}
       </Card>

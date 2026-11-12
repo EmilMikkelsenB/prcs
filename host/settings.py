@@ -17,6 +17,8 @@ RUNTIME = {
     "scheduler_tick": ("int", 10, 2, 3600, "Scheduler tick (seconds)", "How often flowpaths are checked."),
     "kb_dir": ("str", "/app/kb", None, None, "KB folder (inside the container)", "Leave as /app/kb unless you mounted elsewhere; the real folder on your machine is KB_PATH below."),
     "kb_sync_interval": ("int", 3600, 0, 86400, "KB repo sync interval (seconds, 0 = manual only)", "Pulls docs from each loop's target repo."),
+    "improve_model": ("str", "claude-sonnet-5-5", None, None, "Model for Improve (loop form)", "Used when you press Improve on a loop idea."),
+    "terse_mode": ("choice", "on", ["off", "on", "ultra"], None, "Terse output (caveman style)", "Tells Claude to write fewer output tokens: shorter answers, same code and files. Lowers cost; run notes read more tersely. ultra = shortest."),
     "kb_extensions": ("str", "md,mdx,txt,rst", None, None, "KB file types to sync", "Comma-separated extensions."),
 }
 
@@ -76,6 +78,10 @@ def load_env_into_os():
 
 def _coerce(key, val):
     typ, _, lo, hi, label, _h = RUNTIME[key]
+    if typ == "choice":
+        if val not in lo:
+            raise ValueError("%s must be one of %s" % (label, ", ".join(lo)))
+        return val
     if typ == "int":
         try:
             val = int(val)
@@ -98,7 +104,8 @@ def get_all():
     env = read_env()
     return {
         "runtime": [{"key": k, "type": t, "value": config.get_runner_url() if k == "runner_url" else config.get(k, d),
-                     "label": l, "help": h, "min": lo, "max": hi}
+                     "label": l, "help": h, "min": None if t == "choice" else lo, "max": hi,
+                     "options": lo if t == "choice" else None}
                     for k, (t, d, lo, hi, l, h) in RUNTIME.items()],
         "env": [{"key": k, "label": l, "secret": s, "restart": r, "help": h,
                  "value": "" if s else env.get(k, ""), "set": k in env}

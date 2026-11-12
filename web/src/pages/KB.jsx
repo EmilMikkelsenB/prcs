@@ -1,6 +1,46 @@
 import React, { useEffect, useState } from "react";
 import { api, del, ago } from "../api.js";
-import { Card, Button, Chip, Empty, Field, Icon, useToast } from "../ui.jsx";
+import { Card, Button, Chip, Empty, Field, Icon, Markdown, useToast } from "../ui.jsx";
+
+const TONE = { done: "ok", failed: "bad", limit_hit: "warn" };
+
+/** Parse a runs/ note (see kb.save_run) into parts; null for anything else so it renders as plain markdown. */
+function parseRun(path, text) {
+  if (!path.startsWith("runs/")) return null;
+  const m = text.match(/^# (.+) - (\w+)\n\n([\s\S]*?)\n\n---\n\n## Run details\n\n([\s\S]*)$/);
+  if (!m) return null;
+  const [, name, status, result, details] = m;
+  const line = (k) => (details.match(new RegExp("^- " + k + ": (.*)$", "m")) || [])[1];
+  let out = {};
+  try { out = JSON.parse((details.match(/```json\n([\s\S]*?)\n```/) || [])[1] || "{}"); } catch { /* keep {} */ }
+  return { name, status, result, repo: line("repo"), cost: line("cost"), exit: line("exit code"), out, details };
+}
+
+function RunNote({ run }) {
+  const o = run.out || {};
+  const files = Array.isArray(o.files) ? o.files : Object.keys(o.files || {});
+  return (
+    <>
+      <div className="run-head">
+        <Chip tone={TONE[run.status]}>{run.status}</Chip>
+        <span className="muted small">{run.repo}</span>
+        <span className="muted small">{run.cost}</span>
+      </div>
+      {(o.pr_url || o.commit || files.length > 0) && (
+        <div className="run-links">
+          {o.pr_url && <a className="pill" href={o.pr_url} target="_blank" rel="noreferrer">Pull request ↗</a>}
+          {o.commit && <span className="pill">commit {o.commit.slice(0, 7)}</span>}
+          {files.map((f) => <span key={f} className="pill">{f}</span>)}
+        </div>
+      )}
+      <div className="run-result"><Markdown text={run.result} /></div>
+      <details className="run-raw">
+        <summary>Technical details</summary>
+        <pre className="kb-view">{run.details}</pre>
+      </details>
+    </>
+  );
+}
 
 export default function KB() {
   const toast = useToast();
@@ -9,6 +49,7 @@ export default function KB() {
   const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(null); // {path, content, editable, draft}
   const [busy, setBusy] = useState(false);
+  const [src, setSrc] = useState(false); // false = rendered markdown
 
   const list = (query = q) => api("/kb?q=" + encodeURIComponent(query)).then(setFiles).catch((e) => toast(e.message, "bad"));
   const loadStatus = () => api("/kb/status").then(setStatus).catch(() => {});
@@ -76,7 +117,7 @@ export default function KB() {
       )}
         </div>
         {open ? (
-        <Card title={open.path} aside={<Button kind="ghost" icon="x" aria-label="Close" onClick={() => setOpen(null)} />}>
+        <Card title={open.path} aside={<><div className="seg" role="group" aria-label="View"><button className={src ? "" : "on"} onClick={() => setSrc(false)}>Preview</button><button className={src ? "on" : ""} onClick={() => setSrc(true)}>Source</button></div><Button kind="ghost" icon="x" aria-label="Close" onClick={() => setOpen(null)} /></>}>
           {open.editable ? (
             <>
               {open.isNew && (
@@ -84,7 +125,9 @@ export default function KB() {
                   <input value={open.path} onChange={(e) => setOpen({ ...open, path: e.target.value })} />
                 </Field>
               )}
-              <textarea rows={14} value={open.draft} onChange={(e) => setOpen({ ...open, draft: e.target.value })} />
+              {src || open.isNew
+                ? <textarea rows={14} value={open.draft} onChange={(e) => setOpen({ ...open, draft: e.target.value })} />
+                : <Markdown text={open.draft} />}
               <div className="row">
                 <Button kind="primary" onClick={save} disabled={open.draft === open.content && !open.isNew}>Save</Button>
                 {!open.isNew && <Button kind="danger" icon="trash" onClick={remove}>Delete</Button>}
@@ -93,7 +136,7 @@ export default function KB() {
           ) : (
             <>
               <p className="muted small">Read-only mirror — it's overwritten on the next sync. Copy it into <code>notes/</code> to edit.</p>
-              <pre className="kb-view">{open.content}</pre>
+              {src ? <pre className="kb-view">{open.content}</pre> : (parseRun(open.path, open.content) ? <RunNote run={parseRun(open.path, open.content)} /> : <Markdown text={open.content} />)}
             </>
           )}
         </Card>

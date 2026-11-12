@@ -1,4 +1,4 @@
-# agent-loop-dash
+# Wellqon Cadence
 
 Generic, dockerized control panel for Claude Code agent loops: create loops,
 chain them into flowpaths, target any GitHub repo you authorize.

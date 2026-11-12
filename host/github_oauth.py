@@ -25,7 +25,7 @@ CLIENT_SECRET = os.environ.get("GITHUB_OAUTH_CLIENT_SECRET", "")
 AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 TOKEN_URL = "https://github.com/login/oauth/access_token"
 API_BASE = "https://api.github.com"
-USER_AGENT = "agent-loop-dash"
+USER_AGENT = "wellqon-cadence"
 
 
 def authorize_url(state, redirect_uri):

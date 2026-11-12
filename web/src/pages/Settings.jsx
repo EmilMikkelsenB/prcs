@@ -1,8 +1,40 @@
 import React, { useEffect, useState } from "react";
-import { api } from "../api.js";
-import { Card, Button, Field, useToast } from "../ui.jsx";
+import { api, useFetch } from "../api.js";
+import { Card, Button, Chip, Field, useToast } from "../ui.jsx";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function ClaudeAccess() {
+  const toast = useToast();
+  const [runner, reload] = useFetch("/runner", 15000);
+  const [kind, setKind] = useState("oauth_token");
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const rn = runner?.runner;
+  const act = async (body, msg) => {
+    setBusy(true);
+    try { await api("/claude-auth", body); setValue(""); toast(msg); reload(); } catch (e) { toast(e.message, "bad"); }
+    setBusy(false);
+  };
+  const src = { oauth_token: "subscription token", api_key: "API key", login: "interactive login" }[rn?.source];
+  return (
+    <Card title="Claude access" aside={<Chip tone={!rn?.ok ? "bad" : rn.logged_in ? "ok" : "warn"}>
+      {!rn?.ok ? "runner unreachable" : rn.logged_in ? `signed in (${src})` : "not signed in"}</Chip>}>
+      <p className="muted small">The runner needs credentials to run Claude. On any computer where you're signed in to Claude, run{" "}
+        <code>claude setup-token</code> and paste the token here, or paste an Anthropic API key. It's stored on the runner only and never shown again.</p>
+      <div className="row">
+        <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Credential type">
+          <option value="oauth_token">Subscription token (claude setup-token)</option>
+          <option value="api_key">Anthropic API key</option>
+        </select>
+        <input className="grow" type="password" autoComplete="off" value={value} placeholder={kind === "api_key" ? "sk-ant-api…" : "sk-ant-oat…"}
+               onChange={(e) => setValue(e.target.value)} />
+        <Button kind="primary" busy={busy} disabled={!value} onClick={() => act({ kind, value }, "Claude credentials saved")}>Save</Button>
+        {rn?.logged_in && rn.source !== "login" && <Button kind="danger" busy={busy} onClick={() => act({ clear: true }, "Credentials removed")}>Remove</Button>}
+      </div>
+    </Card>
+  );
+}
 
 export default function Settings() {
   const toast = useToast();
@@ -68,12 +100,19 @@ export default function Settings() {
           <Button onClick={() => setPending(null)}>Got it</Button>
         </div>
       )}
+      <ClaudeAccess />
       <form onSubmit={save}>
         <Card title="Live settings" aside={<span className="muted small">apply immediately</span>}>
           {data.runtime.map((s) => (
             <Field key={s.key} label={s.label}>
-              <input type={s.type === "int" ? "number" : "text"} min={s.min ?? undefined} max={s.max ?? undefined}
-                     value={vals.runtime[s.key] ?? ""} onChange={(e) => set("runtime", s.key, e.target.value)} />
+              {s.options ? (
+                <select value={vals.runtime[s.key] ?? ""} onChange={(e) => set("runtime", s.key, e.target.value)}>
+                  {s.options.map((o) => <option key={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input type={s.type === "int" ? "number" : "text"} min={s.min ?? undefined} max={s.max ?? undefined}
+                       value={vals.runtime[s.key] ?? ""} onChange={(e) => set("runtime", s.key, e.target.value)} />
+              )}
               {s.help && <span className="muted small">{s.help}</span>}
             </Field>
           ))}

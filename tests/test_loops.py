@@ -12,9 +12,9 @@ def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(loops, "LOOPS_DIR", str(tmp_path))
 
 
-def test_create_rejects_bad_role():
+def test_create_rejects_bad_permissions():
     with pytest.raises(ValueError):
-        loops.create({"name": "x", "role": "bogus", "target_repo": "a/b", "focus": {"text": "do x"}})
+        loops.create({"name": "x", "permissions": "bogus", "target_repo": "a/b", "focus": {"text": "do x"}})
 
 
 def test_create_rejects_bad_target_repo():
@@ -52,7 +52,22 @@ def test_update_unknown_loop_rejected():
         loops.update("does-not-exist", {"name": "y"})
 
 
-def test_templates_have_valid_role_and_focus():
-    for t in loops.templates():
-        assert t["role"] in loops.ROLES
-        assert t["focus_text"]
+def test_templates_have_valid_config():
+    for t in loops.TEMPLATES:
+        assert t["permissions"] in loops.PERMISSIONS and t["focus_text"]
+        loops._validate({**t, "name": t["name"], "target_repo": "a/b", "focus": {"text": t["focus_text"]}})
+
+
+def test_old_role_loops_are_converted():
+    prod = loops.create({"name": "p", "role": "producer", "target_repo": "a/b", "focus": {"text": "y"}})
+    assert prod["permissions"] == "files" and prod["output"] == {"queue": "backlog"} and prod["input"] == {"type": "none"}
+    cons = loops.create({"name": "c", "role": "consumer", "target_repo": "a/b", "focus": {"text": "y"}})
+    assert cons["permissions"] == "push" and cons["input"]["queue"] == "backlog" and "role" not in cons
+
+
+def test_queue_validation():
+    base = {"name": "x", "permissions": "files", "target_repo": "a/b", "focus": {"text": "y"}}
+    with pytest.raises(ValueError, match="itself"):
+        loops.create({**base, "input": {"type": "queue", "queue": "q"}, "output": {"queue": "q"}})
+    with pytest.raises(ValueError, match="queue names"):
+        loops.create({**base, "input": {"type": "none"}, "output": {"queue": "bad name!"}})

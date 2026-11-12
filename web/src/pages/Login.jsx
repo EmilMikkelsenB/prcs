@@ -29,7 +29,7 @@ export default function Login({ onLoggedIn }) {
     <div className="login-wrap">
       <div className="login-box panel">
         <div className="panel-b">
-          <div className="brand"><span className="mark"><Icon name="loops" size={14} /></span>Agent Loop Dash</div>
+          <div className="brand"><span className="mark"><Icon name="loops" size={14} /></span>Wellqon Cadence</div>
           <form onSubmit={submit}>
             <div className="field">
               <label>Username</label>

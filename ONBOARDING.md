@@ -20,7 +20,7 @@ Shortcut: GitHub's form accepts prefill via query string. Replace
 `<your-host>` and open this link — the name/URL/callback fields are
 already filled in, just click "Register application":
 ```
-https://github.com/settings/applications/new?oauth_application[name]=agent-loop-dash&oauth_application[url]=http://<your-host>:8088&oauth_application[callback_url]=http://<your-host>:8088/auth/github/callback
+https://github.com/settings/applications/new?oauth_application[name]=wellqon-cadence&oauth_application[url]=http://<your-host>:8088&oauth_application[callback_url]=http://<your-host>:8088/auth/github/callback
 ```
 
 ## 2. Write `.env`
@@ -80,8 +80,13 @@ target repo by name and lets the runner push/open PRs.
 ## 8. Create a loop
 
 **Loops** tab → new loop:
-- Role: `producer` (writes backlog ideas) or `consumer` (implements +
-  opens a PR).
+- Permissions: read only, write files (no git), or full (commit, push, PR).
+- Takes its work from: nothing (schedule / Run now), a **queue** (it takes
+  the oldest item each run), or the previous flowpath step.
+- New files go to queue (optional): every new file the run creates becomes
+  an item in that queue. Queues are per repo, e.g. a finder loop writes
+  `backlog` and an implementer loop reads `backlog`. Items are plain files
+  under `queues/` in the knowledge base.
 - Target repo: pick from your authorized repos.
 - Focus: a preset or custom prompt text.
 - Tuning: leave defaults unless you know you want different sleep/retry

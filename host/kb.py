@@ -98,7 +98,14 @@ def search(q):
     else:
         rows = db.execute("select f.path, f.title, '' from fts f join meta m on m.path=f.path order by m.mtime desc limit 500").fetchall()
     db.close()
-    return [{"path": p, "title": t, "snippet": s, "editable": p.startswith("notes/")} for p, t, s in rows]
+    return [{"path": p, "title": t, "snippet": s, "editable": _editable(p)} for p, t, s in rows]
+
+
+EDITABLE = ("notes/", "queues/")
+
+
+def _editable(rel):
+    return rel.startswith(EDITABLE)
 
 
 def read_file(rel):
@@ -106,13 +113,13 @@ def read_file(rel):
     if not os.path.isfile(full):
         raise ValueError("no such file")
     return {"path": rel, "content": open(full, encoding="utf-8", errors="replace").read(MAX_FILE),
-            "editable": rel.startswith("notes/")}
+            "editable": _editable(rel)}
 
 
 def write_note(rel, content):
     rel = rel.strip().lstrip("/")
-    if not rel.startswith("notes/") or len(rel) <= len("notes/"):
-        raise ValueError("the site only edits files under notes/")
+    if not _editable(rel) or rel.endswith("/"):
+        raise ValueError("the site only edits files under notes/ and queues/")
     if not os.path.splitext(rel)[1]:
         rel += ".md"
     if len(content.encode()) > MAX_FILE:
@@ -125,8 +132,8 @@ def write_note(rel, content):
 
 
 def delete_note(rel):
-    if not rel.startswith("notes/"):
-        raise ValueError("the site only deletes files under notes/")
+    if not _editable(rel):
+        raise ValueError("the site only deletes files under notes/ and queues/")
     full = _safe(rel)
     if os.path.isfile(full):
         os.remove(full)
@@ -141,9 +148,14 @@ def save_run(loop, run_id, run):
         return
     d = os.path.join(root(), "runs", _slug(loop.get("name")))
     os.makedirs(d, exist_ok=True)
-    body = ("# %s - %s\n\n- repo: %s\n- role: %s\n- exit code: %s, %ss\n\n## Output\n```json\n%s\n```\n\n## Log tail\n```\n%s\n```\n" % (
-        loop.get("name"), run.get("status"), loop.get("target_repo"), loop.get("role"),
-        run.get("rc"), run.get("secs"), json.dumps(run.get("output"), indent=2), run.get("log_tail", "")))
+    st = run.get("stats") or {}
+    # Claude's answer first (the part you want to read); bookkeeping after the rule.
+    body = ("# %s - %s\n\n%s\n\n---\n\n## Run details\n\n- repo: %s\n- permissions: %s\n- exit code: %s, %ss\n"
+            "- cost: $%.4f, %s in / %s out tokens\n\n```json\n%s\n```\n" % (
+        loop.get("name"), run.get("status"), (run.get("log_tail") or "_No output._").strip(),
+        loop.get("target_repo"), loop.get("permissions"), run.get("rc"), run.get("secs"),
+        st.get("cost_usd") or 0, st.get("input_tokens", 0), st.get("output_tokens", 0),
+        json.dumps(dict(run.get("output") or {}, files=list((run.get("output") or {}).get("files") or {})), indent=2)))
     name = "%s-%s.md" % (time.strftime("%Y%m%d-%H%M%S"), run_id)
     with open(os.path.join(d, name), "w", encoding="utf-8", newline="\n") as f:
         f.write(body)

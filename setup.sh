@@ -39,7 +39,7 @@ if [[ -z "${SKIP_ENV:-}" ]]; then
   callback="http://${dash_host}:8088/auth/github/callback"
   echo
   echo "GitHub OAuth App — open this, it's pre-filled, just click 'Register application':"
-  echo "  https://github.com/settings/applications/new?oauth_application[name]=$(urlencode "agent-loop-dash")&oauth_application[url]=$(urlencode "http://${dash_host}:8088")&oauth_application[callback_url]=$(urlencode "$callback")"
+  echo "  https://github.com/settings/applications/new?oauth_application[name]=$(urlencode "wellqon-cadence")&oauth_application[url]=$(urlencode "http://${dash_host}:8088")&oauth_application[callback_url]=$(urlencode "$callback")"
   echo
   read -rp "GitHub OAuth client ID (Enter to skip, fill in .env later): " oauth_id
   oauth_secret=""

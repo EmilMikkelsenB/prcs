@@ -20,9 +20,13 @@ import auth  # noqa: E402
 import config  # noqa: E402
 import flowpaths  # noqa: E402
 import github_oauth  # noqa: E402
+import improve  # noqa: E402
 import kb  # noqa: E402
 import loops  # noqa: E402
+import manual  # noqa: E402
+import queues  # noqa: E402
 import runner_client  # noqa: E402
+import runs  # noqa: E402
 import scheduler  # noqa: E402
 import usage  # noqa: E402
 
@@ -100,6 +104,8 @@ class H(BaseHTTPRequestHandler):
                 return self._json(kb.status())
             if p == "/api/kb/file":
                 return self._json(kb.read_file((q.get("path") or [""])[0]))
+            if p == "/api/queues":
+                return self._json(queues.summary())
             if p == "/api/usage":
                 return self._json(usage.summary())
             if p == "/api/runs":
@@ -134,6 +140,18 @@ class H(BaseHTTPRequestHandler):
             return True
         except Exception:
             return False
+
+    def _start_run(self, loop, upstream=None):
+        if not loop:
+            raise ValueError("that loop no longer exists")
+        token = github_oauth.load_token()
+        if not token:
+            raise ValueError("connect GitHub first")
+        r = runs.start(loop, token, upstream)
+        if "error" in r:
+            raise ValueError(r["error"])
+        manual.add(r["run_id"], loop["id"])
+        return r
 
     # --- POST / DELETE -----------------------------------------------------
 
@@ -172,12 +190,37 @@ class H(BaseHTTPRequestHandler):
                 # re-exec in place: new process re-reads .env; works under watchfiles too
                 threading.Timer(0.5, lambda: os.execv(sys.executable, [sys.executable] + sys.argv)).start()
                 return
+            if p == "/api/claude-auth":
+                r = runner_client.set_claude_auth({"clear": bool(body.get("clear")), "kind": body.get("kind"), "value": body.get("value")})
+                if "error" in r:
+                    raise ValueError(r["error"])
+                return self._json(r)
             if p == "/api/kb/sync":
                 return self._json(kb.sync_repos())
             if p == "/api/kb/file":
                 return self._json(kb.write_note(body.get("path", ""), body.get("content", "")))
+            if p == "/api/loops/improve":
+                return self._json(improve.improve(body))
             if p == "/api/loops":
                 return self._json(loops.create(body))
+            m = re.match(r"^/api/loops/(\w+)/run$", p)
+            if m:
+                return self._json(self._start_run(loops.get(m.group(1))))
+            m = re.match(r"^/api/flowpaths/(\w+)/rerun$", p)
+            if m:
+                state = flowpaths.load_state(m.group(1))
+                for link_state in state.values():
+                    rid = link_state.get("current_run_id")
+                    if rid and runner_client.get_run(rid).get("status") == "running":
+                        raise ValueError("this flowpath is still running - stop it first")
+                flowpaths.save_state(m.group(1), {})  # forgets "already ran", so the next tick starts link 1 again
+                return self._json({"ok": True})
+            m = re.match(r"^/api/runs/(\w+)/retry$", p)
+            if m:
+                old = runner_client.get_run(m.group(1))
+                if "error" in old:
+                    raise ValueError("that run is no longer known to the runner")
+                return self._json(self._start_run(loops.get((old.get("loop") or {}).get("id")), old.get("upstream_output")))
             m = re.match(r"^/api/loops/(\w+)$", p)
             if m:
                 return self._json(loops.update(m.group(1), body))

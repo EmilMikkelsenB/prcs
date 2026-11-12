@@ -11,6 +11,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import claude_auth  # noqa: E402
 import run_loop  # noqa: E402
 import workspace  # noqa: E402
 
@@ -61,7 +62,7 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             return self._json({"ok": True, "service": "runner", "claude_version": _claude_version(),
-                               "logged_in": os.path.isfile(os.path.expanduser("~/.claude/.credentials.json"))})
+                               **claude_auth.status()})
         if self.path == "/runs":
             with _lock:  # list view omits log_tail; fetch /runs/<id> for it
                 rows = [{k: v for k, v in dict(r, id=i).items() if k not in ("cancel", "log_tail")} for i, r in _runs.items()]
@@ -76,14 +77,31 @@ class H(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, 404)
 
     def do_POST(self):
+        if self.path == "/improve":
+            body = self._body()
+            try:
+                text, stats = run_loop.ask(body["prompt"], body.get("model") or run_loop.DEFAULT_MODEL)
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
+            return self._json({"text": text, "stats": stats})
+        if self.path == "/auth":
+            body = self._body()
+            try:
+                if body.get("clear"):
+                    claude_auth.clear()
+                else:
+                    claude_auth.save(body.get("kind"), body.get("value"))
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json(claude_auth.status())
         if self.path == "/runs":
             body = self._body()
             run_id = uuid.uuid4().hex[:12]
             with _lock:
                 _runs[run_id] = {"status": "running", "rc": None, "secs": None,
                                   "log_tail": "", "output": {}, "output_id": None,
-                                  "started_at": time.time(), "cancel": threading.Event(),
-                                  "loop": {k: body["loop_config"].get(k) for k in ("id", "name", "role", "target_repo")}}
+                                  "started_at": time.time(), "cancel": threading.Event(), "upstream_output": body.get("upstream_output"),
+                                  "loop": {k: body["loop_config"].get(k) for k in ("id", "name", "permissions", "target_repo")}}
             t = threading.Thread(target=_execute, args=(
                 run_id, body["loop_config"], body["github_token"], body.get("upstream_output")), daemon=True)
             t.start()

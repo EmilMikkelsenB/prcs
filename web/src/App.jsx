@@ -79,7 +79,7 @@ export default function App() {
     <ToastProvider>
       <div className="shell">
         <aside className="side">
-          <div className="brand"><span className="mark"><Icon name="loops" size={14} /></span>Agent Loop Dash</div>
+          <div className="brand"><span className="mark"><Icon name="loops" size={14} /></span>Wellqon Cadence</div>
           <nav aria-label="Sections">{PAGES.map((p) => (
             <button key={p.id} className={"nav" + (p.id === tab ? " on" : "")} onClick={() => setTab(p.id)} aria-current={p.id === tab ? "page" : undefined}>
               <Icon name={p.icon} />{p.id}

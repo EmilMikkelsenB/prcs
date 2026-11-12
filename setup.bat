@@ -29,7 +29,7 @@ set /p "dash_host=Host/IP this dash will be reached at [localhost]: "
 if "%dash_host%"=="" set "dash_host=localhost"
 echo.
 echo GitHub OAuth App - open this, it's pre-filled, just click 'Register application':
-powershell -NoProfile -Command "$h=$env:dash_host; $e={[uri]::EscapeDataString($args[0])}; '  https://github.com/settings/applications/new?oauth_application[name]=agent-loop-dash&oauth_application[url]=' + (& $e \"http://${h}:8088\") + '&oauth_application[callback_url]=' + (& $e \"http://${h}:8088/auth/github/callback\")"
+powershell -NoProfile -Command "$h=$env:dash_host; $e={[uri]::EscapeDataString($args[0])}; '  https://github.com/settings/applications/new?oauth_application[name]=wellqon-cadence&oauth_application[url]=' + (& $e \"http://${h}:8088\") + '&oauth_application[callback_url]=' + (& $e \"http://${h}:8088/auth/github/callback\")"
 echo.
 
 set "oauth_id="
